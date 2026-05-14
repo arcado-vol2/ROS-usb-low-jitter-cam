@@ -8,6 +8,57 @@
 
 #include "v4l2_capture.hpp"
 
+// ---------------------------------------------------------------------------
+// YUYV (YUY2) → BGR8 conversion.
+//
+// The camera outputs YUYV: each 4-byte macro-pixel encodes two pixels as
+//   [Y0][U][Y1][V]
+// ROS "yuv422" maps to UYVY in cv_bridge/image_view, so publishing raw YUYV
+// bytes under that label produces the magenta/green garbage seen in viewers.
+// Converting to BGR8 here (on the non-RT publish thread) is unambiguous and
+// works with every downstream ROS tool.
+//
+// src_stride: actual bytes per row in the mmap buffer (may exceed width*2
+//             due to driver row-padding).  Using width*2 when the driver pads
+//             rows shifts every line and produces vertical-stripe artefacts.
+// ---------------------------------------------------------------------------
+static inline uint8_t clamp_u8(int v) {
+    return v < 0 ? 0u : v > 255 ? 255u : static_cast<uint8_t>(v);
+}
+
+static void yuyv_to_bgr8(const uint8_t* src, uint8_t* dst,
+                          uint32_t width, uint32_t height,
+                          uint32_t src_stride) {
+    for (uint32_t row = 0; row < height; ++row) {
+        const uint8_t* s = src + static_cast<size_t>(row) * src_stride;
+        uint8_t*       d = dst + static_cast<size_t>(row) * width * 3u;
+
+        for (uint32_t col = 0; col < width; col += 2) {
+            const int y0 = s[0];
+            const int u  = s[1];
+            const int y1 = s[2];
+            const int v  = s[3];
+            s += 4;
+
+            // ITU-R BT.601 full-range coefficients (integer, >>8 fixed-point).
+            const int d_u = u - 128;
+            const int e_v = v - 128;
+
+            const int c0 = y0 - 16;
+            d[0] = clamp_u8((298 * c0 + 516 * d_u            + 128) >> 8); // B
+            d[1] = clamp_u8((298 * c0 - 100 * d_u - 208 * e_v + 128) >> 8); // G
+            d[2] = clamp_u8((298 * c0             + 409 * e_v + 128) >> 8); // R
+            d += 3;
+
+            const int c1 = y1 - 16;
+            d[0] = clamp_u8((298 * c1 + 516 * d_u            + 128) >> 8); // B
+            d[1] = clamp_u8((298 * c1 - 100 * d_u - 208 * e_v + 128) >> 8); // G
+            d[2] = clamp_u8((298 * c1             + 409 * e_v + 128) >> 8); // R
+            d += 3;
+        }
+    }
+}
+
 // Compute the constant offset (nanoseconds) from CLOCK_MONOTONIC_RAW to
 // CLOCK_REALTIME so we can publish ROS-compatible wall-clock stamps derived
 // from our CLOCK_MONOTONIC_RAW capture timestamps.
@@ -95,18 +146,21 @@ int main(int argc, char** argv) {
     V4L2Capture capture(cfg);
 
     // Frame callback runs in publish thread (SCHED_OTHER).
-    // One memcpy from mmap buffer into ROS message; everything else is zero-copy.
+    // Converts YUYV → BGR8 (ITU-R BT.601) using the driver's actual row stride
+    // so padding rows don't shift the image.  Output encoding "bgr8" is
+    // unambiguous in all ROS tools (cv_bridge, image_view, RViz).
     capture.setFrameCallback([&](const FrameData& frame) {
         sensor_msgs::Image msg;
         msg.header.stamp    = mono_raw_to_ros_time(frame.timestamp);
         msg.header.frame_id = frame_id;
         msg.width           = frame.width;
         msg.height          = frame.height;
-        msg.encoding        = "yuv422";         // YUYV packed, 2 bytes/pixel
+        msg.encoding        = "bgr8";
         msg.is_bigendian    = 0;
-        msg.step            = frame.width * 2;  // bytes per row
-        msg.data.resize(frame.bytesused);
-        std::memcpy(msg.data.data(), frame.data, frame.bytesused);
+        msg.step            = frame.width * 3u;   // BGR: 3 bytes per pixel, no padding
+        msg.data.resize(static_cast<size_t>(frame.width) * frame.height * 3u);
+        yuyv_to_bgr8(frame.data, msg.data.data(),
+                     frame.width, frame.height, frame.bytesperline);
 
         // Log a delta between driver timestamp and our raw monotonic stamp.
         // Useful for verifying dequeue latency.
