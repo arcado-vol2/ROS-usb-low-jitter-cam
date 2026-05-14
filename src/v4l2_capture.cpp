@@ -197,6 +197,7 @@ void V4L2Capture::setFormat() {
         config_.width  = fmt.fmt.pix.width;
         config_.height = fmt.fmt.pix.height;
     }
+    config_.bytesperline = fmt.fmt.pix.bytesperline;
     ROS_INFO("Format: %ux%u YUYV  stride=%u  imagesize=%u",
              fmt.fmt.pix.width, fmt.fmt.pix.height,
              fmt.fmt.pix.bytesperline, fmt.fmt.pix.sizeimage);
@@ -432,6 +433,7 @@ void V4L2Capture::publishLoop() {
             fd_out.bytesused        = frame.bytesused;
             fd_out.width            = config_.width;
             fd_out.height           = config_.height;
+            fd_out.bytesperline     = config_.bytesperline;
             fd_out.timestamp        = frame.timestamp;
             fd_out.sequence         = frame.sequence;
             fd_out.driver_monotonic = frame.driver_monotonic;

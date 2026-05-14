@@ -15,6 +15,7 @@ struct CameraConfig {
     std::string device           = "/dev/video0";
     uint32_t    width            = 800;
     uint32_t    height           = 600;
+    uint32_t    bytesperline     = 0;   // set by setFormat() from driver; may include padding
     uint32_t    num_buffers      = 4;   // >=2; 4 gives 2 spare queued while 1 is processed
     int         cpu_core         = 3;
     int         rt_priority      = 90;
@@ -35,14 +36,15 @@ struct CameraConfig {
 // Data handed to the user callback – points directly into the kernel mmap buffer.
 // The pointer is valid only for the duration of the callback; do not cache it.
 struct FrameData {
-    const uint8_t*  data;       // mmap pointer into kernel V4L2 buffer
-    size_t          bytesused;  // actual bytes in this frame
+    const uint8_t*  data;           // mmap pointer into kernel V4L2 buffer (YUYV)
+    size_t          bytesused;      // actual bytes in this frame
     uint32_t        width;
     uint32_t        height;
-    struct timespec timestamp;  // CLOCK_MONOTONIC_RAW at exact dequeue moment
-    uint32_t        sequence;   // monotonically increasing driver sequence number
+    uint32_t        bytesperline;   // driver row stride in bytes (may exceed width*2)
+    struct timespec timestamp;      // CLOCK_MONOTONIC_RAW at exact dequeue moment
+    uint32_t        sequence;       // monotonically increasing driver sequence number
     bool            driver_monotonic; // true if driver also reported monotonic ts
-    struct timeval  driver_ts;  // driver-reported timestamp (for delta logging)
+    struct timeval  driver_ts;      // driver-reported timestamp (for delta logging)
 };
 
 struct CaptureStats {
