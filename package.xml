@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>usb_cam_rt</name>
+  <version>1.0.0</version>
+  <description>
+    Low-latency USB camera node for ROS Noetic.
+    Forces 800x600 YUYV capture via V4L2, disables all auto-adjustments,
+    uses CLOCK_MONOTONIC_RAW timestamps, SCHED_FIFO RT capture thread
+    pinned to an isolated CPU core, and zero-copy mmap buffer pipeline.
+    Tested on EPL USBGS1200P01 global shutter camera on Orange Pi 5 Max.
+  </description>
+
+  <maintainer email="user@example.com">user</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <depend>roscpp</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+</package>

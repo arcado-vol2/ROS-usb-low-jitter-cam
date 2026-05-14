@@ -1,0 +1,24 @@
+<launch>
+  <!-- usb_cam_rt: low-latency global shutter USB camera node -->
+
+  <!-- Override any param from command line:
+       roslaunch usb_cam_rt camera.launch device:=/dev/video2 cpu_core:=2 -->
+  <arg name="device"   default="/dev/video0"/>
+  <arg name="cpu_core" default="3"/>
+
+  <node name="usb_cam_rt"
+        pkg="usb_cam_rt"
+        type="usb_cam_node"
+        output="screen"
+        launch-prefix="">
+
+    <!-- Load YAML config first, then allow command-line overrides. -->
+    <rosparam command="load"
+              file="$(find usb_cam_rt)/config/camera_params.yaml"/>
+
+    <!-- Command-line overrides (empty string = use YAML default). -->
+    <param name="device"   value="$(arg device)"/>
+    <param name="cpu_core" type="int" value="$(arg cpu_core)"/>
+
+  </node>
+</launch>
