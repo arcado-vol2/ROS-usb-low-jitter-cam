@@ -1,0 +1,47 @@
+# usb_cam_rt – camera parameters for EPL USBGS1200P01 (Global Shutter Camera)
+# Load via the launch file or: rosparam load camera_params.yaml /usb_cam_rt
+
+# ─── Device & capture format ────────────────────────────────────────────────
+device:      "/dev/video0"
+width:       800        # forced YUYV width  (driver adjusts if unsupported)
+height:      600        # forced YUYV height
+num_buffers: 4          # V4L2 mmap buffer count; minimum 2, recommended 4
+                        # Higher count = more driver-side buffering (more latency)
+                        # Lower count = risk of frame drops under scheduling jitter
+
+# ─── ROS output ─────────────────────────────────────────────────────────────
+frame_id:    "camera"   # tf frame for sensor_msgs/Image header
+
+# ─── Realtime thread ────────────────────────────────────────────────────────
+cpu_core:    3          # CPU core to pin the capture thread to (0-indexed)
+                        # Must match isolcpus= in kernel boot args (see docs/system_setup.md)
+rt_priority: 90         # SCHED_FIFO priority (1–99); 90 leaves room for IRQ threads
+
+# ─── Camera controls (all auto features disabled) ───────────────────────────
+# exposure_auto is always forced to 1 (Manual Mode) by the node.
+# Adjust exposure_absolute to match your lighting conditions.
+# Units: 100 µs per step.  500 → 50 ms exposure.
+exposure_absolute:          500    # range: 1–10000
+
+# Sensor gain.  Lower = less noise, brighter scene needed.
+gain:                        64    # range: 0–1023
+
+# White balance – static colour temperature in Kelvin.
+# auto_white_balance is always disabled by the node.
+white_balance_temperature:  5000   # range: 2800–6500 K
+
+# Focus – fixed (camera has no motorised focus but control is exposed).
+# focus_auto is always disabled by the node.
+focus_absolute:                0   # range: 0–1023
+
+# Image quality controls (fixed, no runtime variation).
+brightness:                    0   # range: -64–64
+contrast:                     50   # range: 0–95
+saturation:                  128   # range: 0–255
+sharpness:                     0   # range: 0–7
+
+# Minimum backlight compensation to reduce hidden exposure hunting.
+backlight_compensation:       36   # range: 36–160 (36 = minimum / off)
+
+# Disable power-line frequency flicker reduction (prevents exposure stepping).
+power_line_frequency:          0   # 0=disabled  1=50 Hz  2=60 Hz
